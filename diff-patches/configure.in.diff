@@ -1,0 +1,58 @@
+--- old/gawk-3.1.0/configure.in	Tue May 15 16:46:40 2001
++++ gnu/gawk-3.1.0/configure.in	Sat Sep 29 22:41:02 2001
+@@ -38,6 +38,9 @@
+ AC_PROG_CPP
+ AC_PROG_RANLIB
+ 
++AC_EXEEXT
++AC_OBJEXT
++
+ # This is a hack. Different versions of install on different systems
+ # are just too different. Chuck it and use install-sh.
+ #
+@@ -150,9 +153,9 @@
+ 
+ dnl check for how to use getpgrp
+ dnl have to hardwire it for VMS POSIX. Sigh.
+-dnl ditto for BeOS.
++dnl ditto for BeOS and OS/2.
+ case `(uname) 2> /dev/null` in
+-*VMS*|*BeOS*)
++*VMS*|*BeOS*|*OS/2*)
+ 	AC_DEFINE(GETPGRP_VOID)
+ 	;;
+ *)	AC_FUNC_GETPGRP
+@@ -173,6 +176,33 @@
+ AC_C_CONST
+ AC_C_INLINE
+ AC_C_STRINGIZE
++
++dnl support for ';' as path separator
++AC_SUBST([PATH_SEPARATOR], [$ac_path_separator])
++
++AC_CHECK_FUNCS([getpgrent])
++
++dnl The following code is copied from the grep package
++dnl some folks ask for this, that's fine by me
++dnl hope they know what they're doing ...
++dnl if glibc2 regex is not included
++
++dnl Many GNU/Linux people have different
++dnl glibc versions with buggy regex.
++jm_INCLUDED_REGEX(regex.c)
++
++dnl Some installers want to be informed if we do not use our regex.
++dnl For example, if the host platform uses dynamic linking and the installer
++dnl knows that the grep may be invoked on other hosts with buggy libraries,
++dnl then the installer should configure --with-included-regex.
++if test "$jm_with_regex" = no; then
++	AC_MSG_WARN(Included regex.c not used)
++fi
++
++# This no-op line works around a bug in automake 1.4:
++# it doesn't recognize the assignment to LIBOBJS
++# in m4/regex.m4.
++: LIBOBJS="$LIBOBJS regex.o"
+ 
+ AC_OUTPUT(Makefile \
+ 	awklib/Makefile \

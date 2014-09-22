@@ -1,0 +1,13 @@
+--- old/gawk-3.1.0/gawkmisc.c	Sun Jan 21 15:49:44 2001
++++ gnu/gawk-3.1.0/gawkmisc.c	Sat Oct  6 18:38:02 2001
+@@ -31,8 +31,8 @@
+ 
+ /* some old compilers don't grok #elif. sigh */
+ 
+-#if defined(MSDOS) || defined(OS2) || defined(WIN32)
+-#include "gawkmisc.pc"
++#if defined(MSDOS) || defined(OS2) || defined(WIN32) || defined(__EMX__)
++#include "pc/gawkmisc.pc"
+ #else /* not MSDOS, not OS2, not WIN32 */
+ #if defined(VMS)
+ #include "vms/gawkmisc.vms"

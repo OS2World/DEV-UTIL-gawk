@@ -1,0 +1,65 @@
+--- old/gawk-3.1.0/Makefile.am	Tue May 15 17:09:08 2001
++++ gnu/gawk-3.1.0/Makefile.am	Mon Oct  1 22:08:02 2001
+@@ -95,7 +95,6 @@
+ 	random.c \
+ 	random.h \
+ 	re.c \
+-	regex.c \
+ 	regex.h \
+ 	replace.c \
+ 	version.in \
+@@ -105,10 +104,10 @@
+ pgawk_SOURCES = $(base_sources) eval_p.c profile_p.c
+ 
+ # Get extra libs as needed
+-LDADD = @INTLLIBS@ @SOCKET_LIBS@
++LDADD = @INTLLIBS@ @SOCKET_LIBS@ @LIBOBJS@
+ 
+ # stuff for compiling gawk/pgawk
+-DEFPATH="\".:$(datadir)\""
++DEFPATH="\".$(PATH_SEPARATOR)$(datadir)\""
+ 
+ DEFS= -DDEFPATH=$(DEFPATH) -DHAVE_CONFIG_H -DGAWK -DLOCALEDIR="\"$(datadir)/locale\""
+ 
+@@ -120,24 +119,24 @@
+ # First, add a link from gawk to gawk-X.Y.Z
+ # For systems where gawk is awk, add a link to awk
+ install-exec-hook:
+-	(fullname=gawk-`./gawk --version | sed 1q | awk '{print $$3}'` ; \
++	(fullname=gawk-`./gawk$(EXEEXT) --version | sed 1q | awk '{print $$3}'`$(EXEEXT) ; \
+ 	cd $(DESTDIR)$(bindir); \
+-	$(LN) gawk $$fullname ; \
+-	if [ ! -f awk ]; \
+-	then	$(LN_S) gawk awk; \
++	$(LN) gawk$(EXEEXT) $$fullname ; \
++	if [ ! -f awk$(EXEEXT) ]; \
++	then	$(LN_S) gawk$(EXEEXT) awk$(EXEEXT); \
+ 	fi; exit 0)
+ 
+ # Undo the above when uninstalling
+ uninstall-links:
+ 	(cd $(DESTDIR)$(bindir); \
+-	if [ -f awk ] && cmp awk gawk > /dev/null; then rm -f awk; fi ; \
+-	fullname=gawk-`./gawk --version | sed 1q | ./gawk '{print $$3}'` ; \
++	if [ -f awk$(EXEEXT) ] && cmp awk$(EXEEXT) gawk$(EXEEXT) > /dev/null; then rm -f awk$(EXEEXT); fi ; \
++	fullname=gawk-`./gawk --version | sed 1q | ./gawk '{print $$3}'`$(EXEEXT) ; \
+ 	rm -f $$fullname; exit 0)
+ 
+ uninstall-recursive: uninstall-links
+ 
+ # force there to be a gawk executable before running tests
+-check-local: gawk pgawk
++check-local: gawk$(EXEEXT) pgawk$(EXEEXT)
+ 
+ # A little extra clean up when making distributions.
+ # FIXME: most of this rule should go away upon switching to libtool.
+@@ -155,7 +154,7 @@
+ # on what's in configure.in.  No-one else but me should have
+ # to use them. So there.
+ patchlev.h: configure.in
+-	./fixvers -p
++	$(SHELL) ./fixvers -p
+ 
+ version.c: configure.in version.in
+-	./fixvers -v
++	$(SHELL) ./fixvers -v

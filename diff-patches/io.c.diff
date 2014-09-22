@@ -1,0 +1,266 @@
+--- old/gawk-3.1.0/io.c	Tue Apr 24 11:35:34 2001
++++ gnu/gawk-3.1.0/io.c	Thu Oct  4 23:14:34 2001
+@@ -57,6 +57,10 @@
+ #endif /* HAVE_NETDB_H */
+ #endif /* HAVE_SOCKETS */
+ 
++#ifdef __EMX__
++#include<process.h>
++#endif
++
+ #if ! defined(S_ISREG) && defined(S_IFREG)
+ #define	S_ISREG(m) (((m) & S_IFMT) == S_IFREG)
+ #endif
+@@ -743,7 +747,7 @@
+ static int
+ close_redir(register struct redirect *rp, int exitwarn, two_way_close_type how)
+ {
+-	int status = 0;
++        int status = 0;
+ 
+ 	if (rp == NULL)
+ 		return 0;
+@@ -780,7 +784,7 @@
+ 			rp->iop = NULL;
+ 		}
+ 	} else if ((rp->flag & (RED_PIPE|RED_WRITE)) == (RED_PIPE|RED_WRITE)) { /* write to pipe */
+-		status = pclose(rp->fp);
++                status = pclose(rp->fp);
+ 		if ((BINMODE & 1) != 0)
+ 			os_setbinmode(fileno(stdin), O_BINARY);
+ 
+@@ -790,7 +794,7 @@
+ 		rp->fp = NULL;
+ 	} else if (rp->iop != NULL) {	/* read from pipe/file */
+ 		if ((rp->flag & RED_PIPE) != 0)		/* read from pipe */
+-			status = gawk_pclose(rp);
++                        status = gawk_pclose(rp);
+ 			/* gawk_pclose sets rp->iop to null */
+ 		else {					/* read from file */
+ 			status = iop_close(rp->iop);
+@@ -1309,7 +1313,7 @@
+ 	return 0;
+ }
+ 
+-#ifdef GETPGRP_VOID
++#if defined GETPGRP_VOID
+ #define getpgrp_arg() /* nothing */
+ #else
+ #define getpgrp_arg() getpid()
+@@ -1519,6 +1523,9 @@
+ 	int ptoc[2], ctop[2];
+ 	int pid;
+ 	int save_errno;
++#ifdef __EMX__
++        int save_stdout, save_stdin;
++#endif
+ 
+ 	if (pipe(ptoc) < 0)
+ 		return FALSE;	/* errno set, diagnostic from caller */
+@@ -1531,7 +1538,80 @@
+ 		return FALSE;
+ 	}
+ 
+-	if ((pid = fork()) < 0) {
++#ifdef __EMX__
++        save_stdin = dup(0); /* duplicate stdin */
++        save_stdout = dup(1); /* duplicate stdout */
++
++        if (save_stdout == -1 || save_stdin == -1) {
++          /* if an error occurrs close all open file handles */
++          save_errno = errno;
++          if (save_stdin != -1) close(save_stdin);
++          if (save_stdout != -1) close(save_stdout);
++          close(ptoc[0]); close(ptoc[1]);
++          close(ctop[0]); close(ctop[1]);
++          errno = save_errno;
++          return FALSE;
++        }
++
++        /* connect pipes to stdin and stdout */
++        close(1); /* close stdout */
++        if (dup(ctop[1]) != 1) /* connect pipe input to stdout */
++          fatal(_("moving pipe to stdout in child failed (dup: %s)"), strerror(errno));
++        close(0); /* close stdin */
++        if (dup(ptoc[0]) != 0) /* connect pipe output to stdin */
++          fatal(_("moving pipe to stdin in child failed (dup: %s)"), strerror(errno));
++
++        /* none of these handles must be inherited by the child process */
++        (void) close(ptoc[0]); /* close pipe output, child will use stdin instead */
++	(void) close(ctop[1]); /* close pipe input, child will use stdout instead */
++
++        if (fcntl(ptoc[1], F_SETFD, FD_CLOEXEC) < 0) { /* pipe input: output of the parent process */
++		warning(_("pipe from `%s': could not set close-on-exec (fcntl: %s)"),
++			str, strerror(errno));;
++        }
++
++        if (fcntl(ctop[0], F_SETFD, FD_CLOEXEC) < 0) { /* pipe output: input of the parent process */
++		warning(_("pipe from `%s': could not set close-on-exec (fcntl: %s)"),
++                        str, strerror(errno));;
++        }
++
++        if (fcntl(save_stdin, F_SETFD, FD_CLOEXEC) < 0) { /* saved stdin of the parent process */
++		warning(_("pipe from `%s': could not set close-on-exec (fcntl: %s)"),
++                        str, strerror(errno));;
++        }
++
++        if (fcntl(save_stdout, F_SETFD, FD_CLOEXEC) < 0) { /* saved stdout of the parent process */
++		warning(_("pipe from `%s': could not set close-on-exec (fcntl: %s)"),
++                        str, strerror(errno));;
++        }
++
++        /* stderr does NOT get dup'ed onto child's stdout */
++        pid = spawnl(P_NOWAIT, "/bin/sh", "sh", "-c", str, NULL);
++
++        /* restore stdin and stdout */
++        close(1);
++        /* perhaps we need some gettext support for these messages? */
++        if (dup(save_stdout) != 1)
++          fatal("restoring stdout in parent process failed\n");
++        close(save_stdout);
++
++        close(0);
++        if (dup(save_stdin) != 0)
++          fatal("restoring stdin in parent process failed\n");
++        close(save_stdin);
++
++        if (pid < 0) { /* spawnl() failed */
++		save_errno = errno;
++		close(ptoc[1]);
++		close(ctop[0]);
++
++		errno = save_errno;
++		return FALSE;
++	}
++
++#else /* NOT __EMX__ */
++
++        if ((pid = fork()) < 0) {
+ 		save_errno = errno;
+ 		close(ptoc[0]); close(ptoc[1]);
+ 		close(ctop[0]); close(ctop[1]);
+@@ -1557,6 +1637,7 @@
+ 		execl("/bin/sh", "sh", "-c", str, NULL);
+ 		_exit(127);
+ 	}
++#endif /* NOT __EMX__ */
+ 
+ 	/* parent */
+ 	rp->pid = pid;
+@@ -1567,6 +1648,7 @@
+ 		(void) close(ptoc[0]);
+ 		(void) close(ptoc[1]);
+ 		(void) kill(pid, SIGKILL);	/* overkill? (pardon pun) */
++
+ 		return FALSE;
+ 	}
+ 	rp->fp = fdopen(ptoc[1], "w");
+@@ -1578,9 +1660,12 @@
+ 		(void) close(ptoc[0]);
+ 		(void) close(ptoc[1]);
+ 		(void) kill(pid, SIGKILL);	/* overkill? (pardon pun) */
+-		return FALSE;
++
++                return FALSE;
+ 	}
+-	if (fcntl(ctop[0], F_SETFD, 1) < 0) {
++
++#ifndef __EMX__
++        if (fcntl(ctop[0], F_SETFD, 1) < 0) {
+ 		warning(_("pipe from `%s': could not set close-on-exec (fcntl: %s)"),
+ 			str, strerror(errno));;
+ 	}
+@@ -1588,9 +1673,12 @@
+ 		warning(_("pipe to `%s': could not set close-on-exec (fcntl: %s)"),
+ 			str, strerror(errno));;
+ 	}
+-	(void) close(ptoc[0]);
++
++        (void) close(ptoc[0]);
+ 	(void) close(ctop[1]);
+-	return TRUE;
++#endif
++
++        return TRUE;
+     }
+ 
+ #else	/*PIPES_SIMULATED*/
+@@ -1649,7 +1737,10 @@
+ gawk_popen(char *cmd, struct redirect *rp)
+ {
+ 	int p[2];
+-	register int pid;
++        register int pid;
++#ifdef __EMX__
++        int save_stdout;
++#endif
+ 
+ 	/*
+ 	 * used to wait for any children to synchronize input and output,
+@@ -1660,7 +1751,39 @@
+ 
+ 	if (pipe(p) < 0)
+ 		fatal(_("cannot open pipe `%s' (%s)"), cmd, strerror(errno));
+-	if ((pid = fork()) == 0) {
++
++#ifdef __EMX__
++        save_stdout = dup(1); /* save stdout */
++        rp->iop = NULL;
++        if (save_stdout == -1) return rp->iop; /* failed */
++
++        close(1); /* close stdout */
++        if (dup(p[1]) != 1)
++          fatal(_("moving pipe to stdout in child failed (dup: %s)"), strerror(errno));
++
++        /* none of these handles must be inherited by the child process */
++        close(p[1]); /* close pipe input */
++
++        if (fcntl(p[0], F_SETFD, FD_CLOEXEC) < 0) { /* pipe output: input of the parent process */
++		warning(_("pipe from `%s': could not set close-on-exec (fcntl: %s)"),
++                        cmd, strerror(errno));;
++        }
++
++        if (fcntl(save_stdout, F_SETFD, FD_CLOEXEC) < 0) { /* saved stdout of the parent process */
++		warning(_("pipe from `%s': could not set close-on-exec (fcntl: %s)"),
++                        cmd, strerror(errno));;
++        }
++
++        pid = spawnl(P_NOWAIT, "/bin/sh", "sh", "-c", cmd, NULL);
++
++        /* restore stdout */
++        close(1);
++        if (dup(save_stdout) != 1)
++          fatal("restoring stdout in parent process failed\n"); /* gettext support? */
++        close(save_stdout);
++
++#else /* NOT __EMX__ */
++        if ((pid = fork()) == 0) {
+ 		if (close(1) == -1)
+ 			fatal(_("close of stdout in child failed (%s)"),
+ 				strerror(errno));
+@@ -1671,16 +1794,21 @@
+ 		execl("/bin/sh", "sh", "-c", cmd, NULL);
+ 		_exit(127);
+ 	}
+-	if (pid == -1)
++#endif /* NOT __EMX__ */
++
++        if (pid == -1)
+ 		fatal(_("cannot create child process for `%s' (fork: %s)"), cmd, strerror(errno));
+ 	rp->pid = pid;
+-	if (close(p[1]) == -1)
++#ifndef __EMX__
++        if (close(p[1]) == -1)
+ 		fatal(_("close of pipe failed (%s)"), strerror(errno));
+-	os_close_on_exec(p[0], cmd, "pipe", "from");
++#endif
++        os_close_on_exec(p[0], cmd, "pipe", "from");
+ 	rp->iop = iop_alloc(p[0], cmd, NULL);
+ 	if (rp->iop == NULL)
+ 		(void) close(p[0]);
+-	return (rp->iop);
++
++        return (rp->iop);
+ }
+ 
+ /* gawk_pclose --- close an open child pipe */

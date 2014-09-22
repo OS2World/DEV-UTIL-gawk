@@ -1,0 +1,38 @@
+--- old/gawk-3.1.0/test/Makefile.am	Tue Mar 20 09:09:42 2001
++++ gnu/gawk-3.1.0/test/Makefile.am	Sun Sep 30 14:48:20 2001
+@@ -410,7 +410,7 @@
+ # This test is a PITA because increasingly, /tmp is getting
+ # mounted noexec.  So, we'll test it.  Sigh.
+ poundbang::
+-	@cp $(AWK) /tmp/gawk
++	@if test -f $(AWK); then cp $(AWK) /tmp/gawk$(EXEEXT); else cp $(AWK)$(EXEEXT) /tmp/gawk$(EXEEXT); fi
+ 	@if /tmp/gawk 'BEGIN { print "OK" }' | grep OK > /dev/null ; \
+ 	then \
+ 		$(srcdir)/poundbang.awk $(srcdir)/poundbang.awk >_`basename $@` ; \
+@@ -525,7 +525,7 @@
+ 	-$(CMP) $(srcdir)/splitargv.ok _$@ && rm -f _$@
+ 
+ awkpath::
+-	@AWKPATH="$(srcdir):$(srcdir)/lib" $(AWK) -f awkpath.awk >_$@
++	@AWKPATH="$(srcdir)$(PATH_SEPARATOR)$(srcdir)/lib" $(AWK) -f awkpath.awk >_$@
+ 	-$(CMP) $(srcdir)/awkpath.ok _$@ && rm -f _$@
+ 
+ nfset::
+@@ -636,7 +636,7 @@
+ 	-$(CMP) $(srcdir)/math.ok _$@ && rm -f _$@
+ 
+ fflush::
+-	@$(srcdir)/fflush.sh >_$@
++	@$(SHELL) -c $(srcdir)/fflush.sh >_$@
+ 	-$(CMP) $(srcdir)/fflush.ok _$@ && rm -f _$@
+ 
+ fldchg::
+@@ -735,7 +735,7 @@
+ # AIX /bin/sh exec's the last command in a list, therefore issue a ":"
+ # command so that pid.sh is fork'ed as a child before being exec'ed.
+ pid::
+-	@AWKPATH=$(srcdir) AWK=$(AWK) $(SHELL) $(srcdir)/pid.sh $$$$ > _`basename $@` ; :
++	@AWKPATH=$(srcdir) AWK=$(AWK) $(SHELL) -c $(srcdir)/pid.sh $$$$ > _`basename $@` ; :
+ 	-$(CMP) $(srcdir)/pid.ok _`basename $@` && rm -f _`basename $@` _`basename $@`.in
+ 
+ strftlng::

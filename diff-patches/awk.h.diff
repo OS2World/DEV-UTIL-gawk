@@ -1,0 +1,55 @@
+--- old/gawk-3.1.0/awk.h	Sun Apr 22 13:44:12 2001
++++ gnu/gawk-3.1.0/awk.h	Sat Oct  6 17:42:34 2001
+@@ -116,9 +116,20 @@
+ #define ISUPPER(c) (IN_CTYPE_DOMAIN (c) && isupper ((unsigned char) c))
+ #define ISXDIGIT(c) (IN_CTYPE_DOMAIN (c) && isxdigit ((unsigned char) c))
+ 
+-#define TOUPPER(c)	toupper((unsigned char) c)
+-#define TOLOWER(c)	tolower((unsigned char) c)
++#ifndef TOUPPER
++# define TOUPPER(c)	toupper((unsigned char) c)
++#endif
++#ifndef TOLOWER
++# define TOLOWER(c)	tolower((unsigned char) c)
++#endif
+ 
++#if defined _WIN32 || defined __WIN32__ || defined __EMX__ || defined __DJGPP__
++  /* Win32, OS/2, DOS */
++# define PATH_SEPARATOR ';'
++#else
++  /* Unix */
++# define PATH_SEPARATOR ':'
++#endif
+ 
+ #ifdef __STDC__
+ #define	P(s)	s
+@@ -169,7 +180,7 @@
+ #include <unixlib.h>
+ #endif	/* atarist || VMS */
+ 
+-#if ! defined(MSDOS) && ! defined(OS2) && ! defined(WIN32)
++#if ! defined(MSDOS) && ! defined(OS2) && ! defined(WIN32) && !defined __EMX__
+ #define O_BINARY	0
+ #endif
+ 
+@@ -1009,3 +1020,20 @@
+ #ifndef STATIC
+ #define STATIC static
+ #endif
++
++/* here we need a very special treatment of initialize_main:
++   if it is already defined it must be undefined.
++   This is necessary because of the harcoded path DEFPATH.
++   If DEFPATH is ".;c:/usr" initialize_main() must add "$UNIXROOT/usr".
++   Otherwise it would be impossible to distribute precompiled binaries
++   for OS/2 because every user may use a different drive for his installation. */
++
++#ifndef initialize_main
++# ifdef __EMX__
++#  define initialize_main(argcp, argvp) \
++  { _response(argcp, argvp); _wildcard(argcp, argvp); }
++# else /* NOT __EMX__ */
++#  define initialize_main(argcp, argvp)
++# endif
++#endif
++

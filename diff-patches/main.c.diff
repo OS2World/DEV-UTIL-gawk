@@ -1,0 +1,11 @@
+--- old/gawk-3.1.0/main.c	Tue May 15 16:48:52 2001
++++ gnu/gawk-3.1.0/main.c	Sat Oct  6 18:22:24 2001
+@@ -781,7 +781,7 @@
+ 	PROCINFO_node = install("PROCINFO",
+ 			node(Nnull_string, Node_var, (NODE *) NULL));
+ 
+-#ifdef GETPGRP_VOID
++#if defined GETPGRP_VOID
+ #define getpgrp_arg() /* nothing */
+ #else
+ #define getpgrp_arg() getpid()
